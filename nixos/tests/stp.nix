@@ -1,7 +1,8 @@
 import ./make-test.nix ({ pkgs, lib, ... }:
 
 let
-  stp = false;
+  stp = true;
+  kernel_package = "linuxPackages_4_7";
 
 in {
   name = "stp";
@@ -10,6 +11,7 @@ in {
 
     server =
       { config, pkgs, ... }: {
+        boot.kernelPackages = pkgs.${kernel_package};
         virtualisation.vlans = [ 1 2 ];
         networking.firewall.enable = false;
         networking.interfaces = {
@@ -39,6 +41,7 @@ in {
 
     client =
       { config, pkgs, ... }: {
+        boot.kernelPackages = pkgs.${kernel_package};
         environment.systemPackages = [ pkgs.bridge-utils ];
         virtualisation.vlans = [ 1 2 ];
         networking.firewall.enable = false;
