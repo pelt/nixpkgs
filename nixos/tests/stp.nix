@@ -1,6 +1,7 @@
 import ./make-test.nix ({ pkgs, lib, ... }:
 
 let
+  stp = false;
 
 in {
   name = "stp";
@@ -11,11 +12,28 @@ in {
       { config, pkgs, ... }: {
         virtualisation.vlans = [ 1 2 ];
         networking.firewall.enable = false;
-        networking.bridges = { br0 = { interfaces = [ "eth1" "eth2" ]; rstp = true; }; };
         networking.interfaces = {
-          br0 = { ip4 = [ { address = "10.0.0.1"; prefixLength = 8; } ]; };
           eth1 = lib.mkOverride 0 {};
           eth2 = lib.mkOverride 0 {};
+        };
+
+        containers.networkaccess = {
+          autoStart = true;
+          interfaces = [ "eth1" "eth2" ];
+          config = { config, pkgs, ... }: {
+            environment.systemPackages = [ pkgs.bridge-utils ];
+            networking.localCommands = ''
+              ip link add br0 type bridge
+              ip addr add 10.0.0.1/8 dev br0
+              ip link set br0 up
+              ip link set eth1 master br0
+              ip link set eth1 up
+              ip link set eth2 master br0
+              ip link set eth2 up
+              ${pkgs.bridge-utils}/bin/brctl show
+              ${pkgs.bridge-utils}/bin/brctl stp br0 on
+            '';
+          };
         };
       };
 
@@ -24,7 +42,7 @@ in {
         environment.systemPackages = [ pkgs.bridge-utils ];
         virtualisation.vlans = [ 1 2 ];
         networking.firewall.enable = false;
-        networking.bridges = { br0 = { interfaces = [ "eth1" "eth2" ]; rstp = true; }; };
+        networking.bridges = { br0 = { interfaces = [ "eth1" "eth2" ]; rstp = stp; }; };
         networking.interfaces = {
           br0 = { ip4 = [ { address = "10.0.0.7"; prefixLength = 8; } ]; };
           eth1 = lib.mkOverride 0 {};
@@ -38,6 +56,7 @@ in {
     startAll;
 
     $server->waitForUnit("default.target");
+    $server->waitForUnit("container\@networkaccess");
     $client->waitForUnit("default.target");
 
     subtest "both connected", sub {
